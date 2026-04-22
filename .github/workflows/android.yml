@@ -1,0 +1,30 @@
+name: Generar APK de LOBHOS
+
+on:
+  push:
+    branches: [ "master" ] # Se dispara cada vez que subas algo a master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Configurar Java
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
+
+    - name: Dar permisos a Gradle
+      run: chmod +x gradlew
+
+    - name: Construir APK Debug
+      run: ./gradlew assembleDebug
+
+    - name: Subir APK terminada
+      uses: actions/upload-artifact@v4
+      with:
+        name: LOBHOS-APK
+        path: app/build/outputs/apk/debug/app-debug.apk
