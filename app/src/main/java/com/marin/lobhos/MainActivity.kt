@@ -31,9 +31,19 @@ import com.marin.lobhos.ui.components.*
 import com.marin.lobhos.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 
 class MainActivity : ComponentActivity() {
-    private val viewModel: LobhosViewModel by viewModels()
+    private val viewModel: LobhosViewModel by viewModels {
+        viewModelFactory {
+            initializer {
+                val application = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as android.app.Application
+                LobhosViewModel(application)
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

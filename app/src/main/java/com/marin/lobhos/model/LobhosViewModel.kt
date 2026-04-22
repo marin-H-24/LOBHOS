@@ -1,16 +1,23 @@
 package com.marin.lobhos.model
 
+import android.app.Application
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.marin.lobhos.data.LobhosStore
+import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class Tarea(
     val id: Long = System.currentTimeMillis(),
     val nombre: String,
     var completada: Boolean = false
 )
 
+@Serializable
 data class Compra(
     val id: Long = System.currentTimeMillis(),
     val nombre: String,
@@ -18,44 +25,70 @@ data class Compra(
     var comprada: Boolean = false
 )
 
+@Serializable
 data class SalidaJeicko(
     val id: Int,
     val etiqueta: String,
     var realizada: Boolean = false
 )
 
-class LobhosViewModel : ViewModel() {
-    // Listas dinámicas
+class LobhosViewModel(application: Application) : AndroidViewModel(application) {
+    private val store = LobhosStore(application)
+
+    // Estados de la UI
     val tareas = mutableStateListOf<Tarea>()
     val compras = mutableStateListOf<Compra>()
+    val salidasJeicko = mutableStateListOf<SalidaJeicko>()
 
-    // Estados de Salud y Perro
     var vasosAgua = mutableIntStateOf(0)
-    val salidasJeicko = mutableStateListOf(
-        SalidaJeicko(1, "SALIDA I"),
-        SalidaJeicko(2, "SALIDA II"),
-        SalidaJeicko(3, "SALIDA III")
-    )
-
-    // Widgets y Progreso
     var fraseDiaria = mutableStateOf("“LA DISCIPLINA ES EL PUENTE ENTRE METAS Y LOGROS.”")
     var progresoGlobal = mutableIntStateOf(0)
     var presupuestoTotal = mutableStateOf(0.0)
 
     init {
-        // Carga inicial de tareas ejemplo
-        listOf("DESPERTAR", "CORRER", "ASEOS", "CITA", "TAREAS", "COMER", "PROYECTO").forEach {
-            tareas.add(Tarea(nombre = it))
+        viewModelScope.launch {
+            // 1. Verificamos si cambió el día antes de cargar nada
+            store.verificarYReiniciarSiEsNuevoDia()
+
+            // 2. Cargamos los datos desde DataStore
+            store.tareasFlow.collect { if (it.isNotEmpty()) { tareas.clear(); tareas.addAll(it) }; actualizarTodo() }
         }
-        actualizarTodo()
+        viewModelScope.launch {
+            store.comprasFlow.collect { if (it.isNotEmpty()) { compras.clear(); compras.addAll(it) }; actualizarPresupuesto() }
+        }
+        viewModelScope.launch {
+            store.jeickoFlow.collect {
+                salidasJeicko.clear()
+                if (it.isEmpty()) {
+                    salidasJeicko.addAll(listOf(SalidaJeicko(1, "SALIDA I"), SalidaJeicko(2, "SALIDA II"), SalidaJeicko(3, "SALIDA III")))
+                } else {
+                    salidasJeicko.addAll(it)
+                }
+                actualizarTodo()
+            }
+        }
+        viewModelScope.launch { store.aguaFlow.collect { vasosAgua.intValue = it; actualizarTodo() } }
+        viewModelScope.launch { store.fraseFlow.collect { fraseDiaria.value = it } }
     }
 
-    // --- Lógica de Tareas ---
+    // --- Lógica de Persistencia ---
+    private fun save() {
+        viewModelScope.launch {
+            store.guardarTareas(tareas)
+            store.guardarCompras(compras)
+            store.guardarAgua(vasosAgua.intValue)
+            store.guardarJeicko(salidasJeicko)
+            store.guardarFrase(fraseDiaria.value)
+        }
+    }
+
+    // --- Funciones de Tareas ---
     fun toggleTarea(id: Long) {
         val index = tareas.indexOfFirst { it.id == id }
         if (index != -1) {
             tareas[index] = tareas[index].copy(completada = !tareas[index].completada)
             actualizarTodo()
+            save()
         }
     }
 
@@ -63,12 +96,14 @@ class LobhosViewModel : ViewModel() {
         if (nombre.isNotBlank()) {
             tareas.add(Tarea(nombre = nombre.uppercase()))
             actualizarTodo()
+            save()
         }
     }
 
     fun eliminarTarea(id: Long) {
         tareas.removeIf { it.id == id }
         actualizarTodo()
+        save()
     }
 
     // --- Lógica de Agua ---
@@ -79,6 +114,7 @@ class LobhosViewModel : ViewModel() {
             vasosAgua.intValue--
         }
         actualizarTodo()
+        save()
     }
 
     // --- Lógica de Jeicko ---
@@ -87,6 +123,7 @@ class LobhosViewModel : ViewModel() {
         if (index != -1) {
             salidasJeicko[index] = salidasJeicko[index].copy(realizada = !salidasJeicko[index].realizada)
             actualizarTodo()
+            save()
         }
     }
 
@@ -95,6 +132,7 @@ class LobhosViewModel : ViewModel() {
         if (nombre.isNotBlank()) {
             compras.add(Compra(nombre = nombre.uppercase(), precio = precio))
             actualizarPresupuesto()
+            save()
         }
     }
 
@@ -102,15 +140,17 @@ class LobhosViewModel : ViewModel() {
         val index = compras.indexOfFirst { it.id == id }
         if (index != -1) {
             compras[index] = compras[index].copy(comprada = !compras[index].comprada)
+            save()
         }
     }
 
     fun eliminarCompra(id: Long) {
         compras.removeIf { it.id == id }
         actualizarPresupuesto()
+        save()
     }
 
-    // --- Cálculos de Sistema ---
+    // --- Cálculos ---
     private fun actualizarPresupuesto() {
         presupuestoTotal.value = compras.sumOf { it.precio }
     }
@@ -118,11 +158,11 @@ class LobhosViewModel : ViewModel() {
     fun actualizarTodo() {
         val totalItems = tareas.size + 9 + salidasJeicko.size
         val completados = tareas.count { it.completada } + vasosAgua.intValue + salidasJeicko.count { it.realizada }
-
         progresoGlobal.intValue = if (totalItems > 0) (completados * 100) / totalItems else 0
     }
 
     fun setFrase(nueva: String) {
         fraseDiaria.value = nueva
+        save()
     }
 }
