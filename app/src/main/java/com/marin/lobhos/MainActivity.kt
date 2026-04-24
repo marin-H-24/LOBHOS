@@ -89,7 +89,7 @@ fun MainScreen(viewModel: LobhosViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(top = 16.dp, start = 12.dp, end = 12.dp)
+            .padding(top = 30.dp, start = 12.dp, end = 12.dp)
     ) {
         // Cabecera glassmorphic
         Row(
@@ -100,7 +100,7 @@ fun MainScreen(viewModel: LobhosViewModel) {
             Text(
                 text = fechaHoy,
                 color = BlancoTexto,
-                fontSize = 15.sp,
+                fontSize = 22.sp,
                 fontWeight = FontWeight.Black,
                 modifier = Modifier
                     .clip(RoundedCornerShape(32.dp))
