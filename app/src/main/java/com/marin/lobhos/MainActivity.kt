@@ -89,7 +89,7 @@ fun MainScreen(viewModel: LobhosViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(top = 30.dp, start = 12.dp, end = 12.dp)
+            .padding(top = 33.dp, start = 12.dp, end = 12.dp)
     ) {
         // Cabecera glassmorphic
         Row(
