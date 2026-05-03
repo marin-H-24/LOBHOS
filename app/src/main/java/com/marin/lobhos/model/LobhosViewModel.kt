@@ -10,14 +10,13 @@ import com.marin.lobhos.data.LobhosStore
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 
-// --- MODELOS DE DATOS V2 ---
 @Serializable
 data class Tarea(
     val id: Long = System.currentTimeMillis(),
     val nombre: String,
     var completada: Boolean = false,
-    var incompleta: Boolean = false, // V2: Estado para la "X"
-    var peso: Int = 1 // V2: Valor de impacto (1-5)
+    var incompleta: Boolean = false,
+    var peso: Int = 1
 )
 
 @Serializable
@@ -51,26 +50,25 @@ data class SupermarketItem(
 class LobhosViewModel(application: Application) : AndroidViewModel(application) {
     private val store = LobhosStore(application)
 
-    // Estados de la UI (Listas)
     val tareas = mutableStateListOf<Tarea>()
     val compras = mutableStateListOf<Compra>()
     val salidasJeicko = mutableStateListOf<SalidaJeicko>()
-    val notas = mutableStateListOf<Nota>() // V2
-    val supermarketItems = mutableStateListOf<SupermarketItem>() // V2
+    val notas = mutableStateListOf<Nota>()
+    val supermarketItems = mutableStateListOf<SupermarketItem>()
 
-    // Variables de Estado
     var vasosAgua = mutableIntStateOf(0)
     var fraseDiaria = mutableStateOf("“LA DISCIPLINA ES EL PUENTE ENTRE METAS Y LOGROS.”")
     var progresoGlobal = mutableIntStateOf(0)
     var presupuestoTotal = mutableStateOf(0.0)
-    var isDayLocked = mutableStateOf(false) // V2: Control de bloqueo diario
+    var isDayLocked = mutableStateOf(false)
+
+    var rachaActual = mutableIntStateOf(0)
+    var promedioSemanal = mutableIntStateOf(0)
+    var historialDatos = mutableStateOf<Map<String, Int>>(emptyMap())
 
     init {
         viewModelScope.launch {
-            // Verificamos el día. Pasamos el progreso actual para guardarlo en el historial
             store.verificarYReiniciarSiEsNuevoDia(progresoGlobal.intValue)
-
-            // Cargas desde DataStore
             store.tareasFlow.collect { if (it.isNotEmpty()) { tareas.clear(); tareas.addAll(it) }; actualizarTodo() }
         }
         viewModelScope.launch { store.comprasFlow.collect { if (it.isNotEmpty()) { compras.clear(); compras.addAll(it) }; actualizarPresupuesto() } }
@@ -87,14 +85,18 @@ class LobhosViewModel(application: Application) : AndroidViewModel(application) 
         }
         viewModelScope.launch { store.aguaFlow.collect { vasosAgua.intValue = it; actualizarTodo() } }
         viewModelScope.launch { store.fraseFlow.collect { fraseDiaria.value = it } }
-
-        // Cargas V2
         viewModelScope.launch { store.notasFlow.collect { if (it.isNotEmpty()) { notas.clear(); notas.addAll(it) } } }
         viewModelScope.launch { store.supermarketFlow.collect { if (it.isNotEmpty()) { supermarketItems.clear(); supermarketItems.addAll(it) } } }
         viewModelScope.launch { store.dayLockedFlow.collect { isDayLocked.value = it } }
+
+        viewModelScope.launch {
+            store.historyFlow.collect { historial ->
+                historialDatos.value = historial
+                calcularEstadisticas(historial)
+            }
+        }
     }
 
-    // --- LÓGICA DE PERSISTENCIA MAESTRA ---
     private fun save() {
         viewModelScope.launch {
             store.guardarTareas(tareas)
@@ -108,16 +110,27 @@ class LobhosViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // --- CÁLCULO INTELIGENTE V2 (8% / 22% / 70%) ---
-    fun actualizarTodo() {
-        // 1. Agua: 9 vasos = 8%
-        val progresoAgua = (vasosAgua.intValue.toFloat() / 9f) * 8f
+    private fun calcularEstadisticas(historial: Map<String, Int>) {
+        if (historial.isEmpty()) return
 
-        // 2. Jeicko: 3 salidas = 22%
+        val datosOrdenados = historial.entries.sortedByDescending { it.key }
+
+        var racha = 0
+        for (dia in datosOrdenados) {
+            if (dia.value > 0) racha++ else break
+        }
+        rachaActual.intValue = racha
+
+        val ultimos7 = datosOrdenados.take(7)
+        val promedio = if (ultimos7.isNotEmpty()) ultimos7.sumOf { it.value } / ultimos7.size else 0
+        promedioSemanal.intValue = promedio
+    }
+
+    fun actualizarTodo() {
+        val progresoAgua = (vasosAgua.intValue.toFloat() / 9f) * 8f
         val completadasJeicko = salidasJeicko.count { it.realizada }.toFloat()
         val progresoJeicko = (completadasJeicko / 3f) * 22f
 
-        // 3. Tareas: Ponderación = 70%
         val progresoTareas = if (tareas.isEmpty()) {
             0f
         } else {
@@ -129,13 +142,11 @@ class LobhosViewModel(application: Application) : AndroidViewModel(application) 
         progresoGlobal.intValue = (progresoAgua + progresoJeicko + progresoTareas).toInt().coerceIn(0, 100)
     }
 
-    // --- BLOQUEO DE DÍA (V2) ---
     fun completarDia() {
         isDayLocked.value = true
         save()
     }
 
-    // --- FUNCIONES DE TAREAS (Actualizadas con Bloqueo) ---
     fun agregarTarea(nombre: String) {
         if (nombre.isNotBlank()) {
             tareas.add(Tarea(nombre = nombre.uppercase()))
@@ -145,30 +156,22 @@ class LobhosViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun toggleTareaCompleta(id: Long) {
-        if (isDayLocked.value) return // Bloqueo de seguridad V2
-
+        if (isDayLocked.value) return
         val index = tareas.indexOfFirst { it.id == id }
         if (index != -1) {
             val estadoActual = tareas[index].completada
-            tareas[index] = tareas[index].copy(
-                completada = !estadoActual,
-                incompleta = false // Remueve la "X" si se completa
-            )
+            tareas[index] = tareas[index].copy(completada = !estadoActual, incompleta = false)
             actualizarTodo()
             save()
         }
     }
 
     fun toggleTareaIncompleta(id: Long) {
-        if (isDayLocked.value) return // Bloqueo de seguridad V2
-
+        if (isDayLocked.value) return
         val index = tareas.indexOfFirst { it.id == id }
         if (index != -1) {
             val estadoX = tareas[index].incompleta
-            tareas[index] = tareas[index].copy(
-                incompleta = !estadoX,
-                completada = false // Remueve el check si se pone "X"
-            )
+            tareas[index] = tareas[index].copy(incompleta = !estadoX, completada = false)
             actualizarTodo()
             save()
         }
@@ -189,7 +192,6 @@ class LobhosViewModel(application: Application) : AndroidViewModel(application) 
         save()
     }
 
-    // --- AGUA (Con Bloqueo) ---
     fun gestionarVaso(incrementar: Boolean) {
         if (isDayLocked.value) return
         if (incrementar && vasosAgua.intValue < 9) {
@@ -201,7 +203,6 @@ class LobhosViewModel(application: Application) : AndroidViewModel(application) 
         save()
     }
 
-    // --- JEICKO (Con Bloqueo) ---
     fun toggleSalida(id: Int) {
         if (isDayLocked.value) return
         val index = salidasJeicko.indexOfFirst { it.id == id }
@@ -212,7 +213,6 @@ class LobhosViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // --- COMPRAS ---
     fun agregarCompra(nombre: String, precio: Double) {
         if (nombre.isNotBlank()) {
             compras.add(Compra(nombre = nombre.uppercase(), precio = precio))
@@ -244,7 +244,6 @@ class LobhosViewModel(application: Application) : AndroidViewModel(application) 
         save()
     }
 
-    // --- SUPERMERCADO V2 ---
     fun agregarSupermarketItem(nombre: String) {
         if (nombre.isNotBlank()) {
             supermarketItems.add(SupermarketItem(nombre = nombre.uppercase()))
@@ -265,7 +264,6 @@ class LobhosViewModel(application: Application) : AndroidViewModel(application) 
         save()
     }
 
-    // --- NOTAS V2 ---
     fun agregarNota(contenido: String) {
         if (contenido.isNotBlank()) {
             notas.add(Nota(contenido = contenido))

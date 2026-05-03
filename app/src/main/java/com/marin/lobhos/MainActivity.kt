@@ -82,7 +82,6 @@ fun MainScreen(viewModel: LobhosViewModel) {
     val scrollTareas = rememberScrollState()
     val scrollWidgets = rememberScrollState()
 
-    // Estados para los diálogos de cierre
     var showConfirm1 by remember { mutableStateOf(false) }
     var showConfirm2 by remember { mutableStateOf(false) }
 
@@ -94,7 +93,6 @@ fun MainScreen(viewModel: LobhosViewModel) {
             .fillMaxSize()
             .padding(top = 33.dp, start = 12.dp, end = 12.dp)
     ) {
-        // Cabecera glassmorphic con indicador de bloqueo
         Row(
             modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -115,10 +113,7 @@ fun MainScreen(viewModel: LobhosViewModel) {
 
                 if (viewModel.isDayLocked.value) {
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "🔒",
-                        fontSize = 18.sp
-                    )
+                    Text(text = "🔒", fontSize = 18.sp)
                 }
             }
 
@@ -126,7 +121,6 @@ fun MainScreen(viewModel: LobhosViewModel) {
         }
 
         Row(modifier = Modifier.fillMaxSize()) {
-            // Columna 1: Tareas (49%)
             Column(
                 modifier = Modifier
                     .weight(0.49f)
@@ -139,7 +133,6 @@ fun MainScreen(viewModel: LobhosViewModel) {
 
             Spacer(modifier = Modifier.weight(0.02f))
 
-            // Columna 2: Widgets (49%)
             Column(
                 modifier = Modifier
                     .weight(0.49f)
@@ -165,17 +158,20 @@ fun MainScreen(viewModel: LobhosViewModel) {
                 Spacer(modifier = Modifier.height(16.dp))
 
                 ShoppingCard(viewModel)
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                // Llamado Fase 5
                 SupermarketComponent(viewModel)
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Llamado Fase 5
                 NotesComponent(viewModel)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                StatisticsCard(viewModel)
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // BOTÓN DE CIERRE (Solo visible si no está bloqueado)
+                HorizontIAComponent()
+                Spacer(modifier = Modifier.height(24.dp))
+
                 if (!viewModel.isDayLocked.value) {
                     Box(
                         modifier = Modifier
@@ -202,7 +198,6 @@ fun MainScreen(viewModel: LobhosViewModel) {
         }
     }
 
-    // Diálogos de Seguridad
     ManejadorDialogosCierre(
         show1 = showConfirm1,
         show2 = showConfirm2,
