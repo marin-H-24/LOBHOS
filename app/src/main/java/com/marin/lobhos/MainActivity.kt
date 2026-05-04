@@ -157,6 +157,9 @@ fun MainScreen(viewModel: LobhosViewModel) {
                 JeickoCard(viewModel)
                 Spacer(modifier = Modifier.height(16.dp))
 
+                StatisticsCard(viewModel)
+                Spacer(modifier = Modifier.height(24.dp))
+
                 ShoppingCard(viewModel)
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -165,9 +168,6 @@ fun MainScreen(viewModel: LobhosViewModel) {
 
                 NotesComponent(viewModel)
                 Spacer(modifier = Modifier.height(16.dp))
-
-                StatisticsCard(viewModel)
-                Spacer(modifier = Modifier.height(24.dp))
 
                 HorizontIAComponent()
                 Spacer(modifier = Modifier.height(24.dp))

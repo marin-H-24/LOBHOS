@@ -9,6 +9,8 @@ import androidx.lifecycle.viewModelScope
 import com.marin.lobhos.data.LobhosStore
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
+import java.text.SimpleDateFormat
+import java.util.*
 
 @Serializable
 data class Tarea(
@@ -68,7 +70,7 @@ class LobhosViewModel(application: Application) : AndroidViewModel(application) 
 
     init {
         viewModelScope.launch {
-            store.verificarYReiniciarSiEsNuevoDia(progresoGlobal.intValue)
+            store.verificarYReiniciarSiEsNuevoDia()
             store.tareasFlow.collect { if (it.isNotEmpty()) { tareas.clear(); tareas.addAll(it) }; actualizarTodo() }
         }
         viewModelScope.launch { store.comprasFlow.collect { if (it.isNotEmpty()) { compras.clear(); compras.addAll(it) }; actualizarPresupuesto() } }
@@ -87,7 +89,7 @@ class LobhosViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch { store.fraseFlow.collect { fraseDiaria.value = it } }
         viewModelScope.launch { store.notasFlow.collect { if (it.isNotEmpty()) { notas.clear(); notas.addAll(it) } } }
         viewModelScope.launch { store.supermarketFlow.collect { if (it.isNotEmpty()) { supermarketItems.clear(); supermarketItems.addAll(it) } } }
-        viewModelScope.launch { store.dayLockedFlow.collect { isDayLocked.value = it } }
+        viewModelScope.launch { store.dayLockedFlow.collect { isDayLocked.value = it; actualizarTodo() } }
 
         viewModelScope.launch {
             store.historyFlow.collect { historial ->
@@ -107,6 +109,11 @@ class LobhosViewModel(application: Application) : AndroidViewModel(application) 
             store.guardarNotas(notas)
             store.guardarSupermarket(supermarketItems)
             store.setDayLocked(isDayLocked.value)
+
+            // Asegura que la racha y el gráfico se actualicen en tiempo real
+            val sdf = SimpleDateFormat("yyyyMMdd", Locale.getDefault())
+            val hoy = sdf.format(Date())
+            store.guardarProgresoHistorial(hoy, progresoGlobal.intValue)
         }
     }
 
@@ -127,6 +134,8 @@ class LobhosViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun actualizarTodo() {
+        if (isDayLocked.value) return
+
         val progresoAgua = (vasosAgua.intValue.toFloat() / 9f) * 8f
         val completadasJeicko = salidasJeicko.count { it.realizada }.toFloat()
         val progresoJeicko = (completadasJeicko / 3f) * 22f

@@ -1,5 +1,7 @@
 package com.marin.lobhos.ui.components
 
+import android.graphics.Paint
+import android.graphics.Typeface
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -18,6 +20,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -82,7 +85,9 @@ fun StatisticsCard(viewModel: LobhosViewModel) {
 @Composable
 fun GestorGraficoFlotante(viewModel: LobhosViewModel, onClose: () -> Unit) {
     val historial = viewModel.historialDatos.value
-    val valores = historial.entries.sortedBy { it.key }.takeLast(30).map { it.value }
+    val historialOrdenado = historial.entries.sortedBy { it.key }.takeLast(30)
+    val valores = historialOrdenado.map { it.value }
+    val fechas = historialOrdenado.map { it.key.takeLast(2) } // Muestra solo el dia
 
     Column(
         modifier = Modifier
@@ -109,41 +114,97 @@ fun GestorGraficoFlotante(viewModel: LobhosViewModel, onClose: () -> Unit) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(200.dp)
+                .height(280.dp)
                 .background(GrisOscuro.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
-                .padding(16.dp)
+                .padding(start = 8.dp, end = 16.dp, top = 20.dp, bottom = 30.dp)
         ) {
-            if (valores.size > 1) {
+            if (valores.isNotEmpty()) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     val maxVal = 100f
-                    val stepX = size.width / (valores.size - 1)
+                    val paddingX = 70f // Espacio lateral para los numeros del eje Y
+                    val drawWidth = size.width - paddingX
+                    val drawHeight = size.height
 
-                    val path = Path()
-                    valores.forEachIndexed { index, value ->
-                        val x = index * stepX
-                        val y = size.height - ((value / maxVal) * size.height)
-                        if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                    val textPaint = Paint().apply {
+                        color = android.graphics.Color.argb(128, 255, 255, 255)
+                        textSize = 28f
+                        typeface = Typeface.DEFAULT_BOLD
+                        textAlign = Paint.Align.RIGHT
+                    }
 
-                        drawCircle(
-                            color = if (value == 100) Color(0xFF00C853) else RojoPrincipal,
-                            radius = 4.dp.toPx(),
-                            center = Offset(x, y)
+                    // 1. Dibujar Eje Y
+                    val niveles = listOf(0, 25, 50, 75, 100)
+                    niveles.forEach { nivel ->
+                        val yPos = drawHeight - ((nivel / maxVal) * drawHeight)
+                        drawContext.canvas.nativeCanvas.drawText(
+                            "$nivel%",
+                            paddingX - 15f,
+                            yPos + 10f,
+                            textPaint
+                        )
+                        drawLine(
+                            color = Color.White.copy(alpha = 0.1f),
+                            start = Offset(paddingX, yPos),
+                            end = Offset(size.width, yPos),
+                            strokeWidth = 2f
                         )
                     }
 
-                    drawPath(
-                        path = path,
-                        color = RojoPrincipal.copy(alpha = 0.8f),
-                        style = Stroke(
-                            width = 3.dp.toPx(),
-                            cap = StrokeCap.Round,
-                            join = StrokeJoin.Round
+                    // 2. Dibujar Linea del Grafico y Eje X
+                    if (valores.size > 1) {
+                        val stepX = drawWidth / (valores.size - 1)
+                        val path = Path()
+
+                        textPaint.textAlign = Paint.Align.CENTER
+
+                        valores.forEachIndexed { index, value ->
+                            val x = paddingX + (index * stepX)
+                            val y = drawHeight - ((value / maxVal) * drawHeight)
+
+                            if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+
+                            // Etiqueta del dia (Eje X)
+                            if (valores.size <= 7 || index % 3 == 0 || index == valores.size - 1) {
+                                drawContext.canvas.nativeCanvas.drawText(
+                                    fechas[index],
+                                    x,
+                                    drawHeight + 40f,
+                                    textPaint
+                                )
+                            }
+
+                            drawCircle(
+                                color = if (value == 100) Color(0xFF00C853) else RojoPrincipal,
+                                radius = 6.dp.toPx(),
+                                center = Offset(x, y)
+                            )
+                        }
+
+                        drawPath(
+                            path = path,
+                            color = RojoPrincipal.copy(alpha = 0.8f),
+                            style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
                         )
-                    )
+                    } else {
+                        // Un solo dato
+                        val x = paddingX + drawWidth / 2
+                        val y = drawHeight - ((valores[0] / maxVal) * drawHeight)
+                        drawCircle(
+                            color = if (valores[0] == 100) Color(0xFF00C853) else RojoPrincipal,
+                            radius = 6.dp.toPx(),
+                            center = Offset(x, y)
+                        )
+                        drawContext.canvas.nativeCanvas.drawText(
+                            fechas[0],
+                            x,
+                            drawHeight + 40f,
+                            textPaint.apply { textAlign = Paint.Align.CENTER }
+                        )
+                    }
                 }
             } else {
                 Text(
-                    text = "No hay suficientes datos para el gráfico.",
+                    text = "Aún no hay datos guardados.",
                     color = BlancoTexto.copy(alpha = 0.4f),
                     modifier = Modifier.align(Alignment.Center)
                 )
