@@ -2,7 +2,7 @@ name: Generar APK de LOBHOS
 
 on:
   push:
-    branches: [ "master" ] # Se dispara cada vez que subas algo a master
+    branches: [ "principal" ] # Se dispara cada vez que subas algo a master
 
 jobs:
   build:
