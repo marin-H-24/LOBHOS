@@ -12,6 +12,15 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("lobho.jks")
+            storePassword = System.getenv("KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("KEY_ALIAS")
+            keyPassword = System.getenv("KEY_PASSWORD")
+        }
+    }
+
     defaultConfig {
         applicationId = "com.marin.lobhos"
         minSdk = 29
@@ -23,6 +32,9 @@ android {
     }
 
     buildTypes {
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("release")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
